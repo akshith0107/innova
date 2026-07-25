@@ -1,0 +1,76 @@
+{
+  "name": "pramaan-trust-extension",
+  "private": true,
+  "version": "2.4.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:ext": "plasmo build",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "preview": "vite preview"
+  },
+  "manifest": {
+    "manifest_version": 3,
+    "name": "PRAMAAN — The AI Trust Layer",
+    "version": "2.4.0",
+    "description": "Real-time trust layer and claim verification engine for ChatGPT, Gemini, Claude, Perplexity, Grok, DeepSeek, and Copilot.",
+    "permissions": [
+      "storage",
+      "activeTab",
+      "scripting",
+      "tabs"
+    ],
+    "host_permissions": [
+      "https://chat.openai.com/*",
+      "https://chatgpt.com/*",
+      "https://gemini.google.com/*",
+      "https://claude.ai/*",
+      "https://perplexity.ai/*",
+      "https://grok.com/*",
+      "https://deepseek.com/*",
+      "https://copilot.microsoft.com/*",
+      "https://github.com/*"
+    ],
+    "commands": {
+      "toggle-sidebar": {
+        "suggested_key": {
+          "default": "Alt+Shift+V",
+          "mac": "Alt+Shift+V"
+        },
+        "description": "Toggle PRAMAAN Floating Workspace Sidebar"
+      }
+    }
+  },
+  "dependencies": {
+    "@plasmohq/storage": "^1.15.0",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@tanstack/react-query": "^5.101.4",
+    "canvas-confetti": "^1.9.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.42.2",
+    "lucide-react": "^1.26.0",
+    "plasmo": "^0.90.5",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^3.4.17",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/chrome": "^0.0.308",
+    "@types/node": "^24.13.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "autoprefixer": "^10.4.20",
+    "oxlint": "^1.71.0",
+    "postcss": "^8.5.2",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1"
+  }
+}
