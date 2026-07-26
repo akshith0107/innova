@@ -1,6 +1,6 @@
 """Report Agent for PRAMAAN AI — Asymmetric Risk-Weighted Falsification Architecture.
 
-Calculates Asymmetric Risk-Weighted Trust Scores and sorts claims by risk severity (Supported Claims LAST!).
+Calculates Asymmetric Risk-Weighted Trust Scores and logs verdict preservation across pipeline stages.
 """
 
 from typing import Dict, Any, List
@@ -11,7 +11,7 @@ logger = get_logger(__name__)
 
 
 class ReportAgent:
-    """Agent that calculates Asymmetric Risk-Weighted Trust Scores and sorts claims by risk priority."""
+    """Agent that calculates Asymmetric Risk-Weighted Trust Scores and verifies verdict preservation."""
     
     def __init__(self, groq_service: Any):
         """Initialize the report agent.
@@ -38,6 +38,17 @@ class ReportAgent:
 
         relevance_score = float(quality.get("relevance_score", 90.0))
         completeness_score = float(quality.get("completeness_score", 90.0))
+
+        # Trace Verdict Preservation across Pipeline Stage: Judge -> Report
+        print("==================================================")
+        print("PIPELINE TRACE: JUDGE -> REPORT VERDICT PRESERVATION")
+        for idx, v in enumerate(verdicts, start=1):
+            c_txt = v.get("claim", f"Claim {idx}")[:50]
+            v_val = v.get("verdict", "UNSUPPORTED")
+            r_lvl = v.get("risk_level", "LOW")
+            conf = v.get("confidence", 0.90)
+            print(f"Claim {idx} ('{c_txt}'): Verdict = {v_val} | Risk = {r_lvl} | Confidence = {conf}")
+        print("==================================================")
 
         # Asymmetric Risk Penalty Calculation
         contradicted_count = sum(1 for v in verdicts if v.get("verdict") in ["CONTRADICTED", "FALSE"])
