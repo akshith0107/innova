@@ -21,7 +21,6 @@ def calculate_offsets(llm_response: str, claim_text: str) -> Tuple[int, int, str
         end_offset = pos + len(claim_text)
         return start_offset, end_offset, claim_text
 
-    # Fuzzy/partial matching fallback if exact match not found
     words = claim_text.split()
     if len(words) >= 3:
         snippet = " ".join(words[:4])
@@ -39,6 +38,7 @@ def map_status_state(verdict: str) -> str:
         "SUPPORTED": "Claim verified",
         "FALSE": "Claim contradicted",
         "CONTRADICTED": "Claim contradicted",
+        "PARTIALLY_SUPPORTED": "Evidence conflict",
         "MIXED": "Evidence conflict",
         "UNCERTAIN": "Claim uncertain",
         "UNVERIFIED": "Claim researching"
@@ -53,17 +53,21 @@ def format_claim_for_extension(
     verdict: Optional[str] = "UNVERIFIED",
     confidence: Optional[float] = 0.5,
     evidence_list: Optional[List[Dict[str, Any]]] = None,
-    sources_list: Optional[List[Dict[str, Any]]] = None
+    sources_list: Optional[List[Dict[str, Any]]] = None,
+    correction: Optional[str] = None,
+    risk_level: Optional[str] = "LOW",
+    claimed_value: Optional[str] = None,
+    verified_value: Optional[str] = None,
+    difference: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Format claim with offsets, SHA-256 hash, snippet, and status for Chrome extension."""
+    """Format claim with numeric matrix, risk level, disconfirming corrections, and status for Chrome extension."""
     start_offset, end_offset, quote_snippet = calculate_offsets(llm_response, claim_text)
     sentence_hash = compute_sentence_hash(claim_text)
     status_state = map_status_state(verdict)
 
-    # Compute claim-level trust score (0 - 100)
     trust_score = round(confidence * 100.0, 1) if confidence else 50.0
-    if verdict == "FALSE":
-        trust_score = round((1.0 - (confidence or 0.5)) * 30.0, 1)
+    if verdict in ["FALSE", "CONTRADICTED"]:
+        trust_score = round((1.0 - (confidence or 0.85)) * 20.0, 1)
 
     return {
         "claim_id": claim_id,
@@ -75,6 +79,11 @@ def format_claim_for_extension(
         "trust_score": trust_score,
         "confidence": confidence,
         "verdict": verdict,
+        "risk_level": risk_level,
+        "claimed_value": claimed_value,
+        "verified_value": verified_value,
+        "difference": difference,
+        "correction": correction,
         "evidence": evidence_list or [],
         "sources": sources_list or [],
         "status": status_state

@@ -27,7 +27,7 @@ from app.utils.chunking import TextChunker
 from app.utils.metrics import get_metrics_collector
 from app.api import auth_routes
 
-router = APIRouter(prefix="/api/v1", tags=["verification"])
+router = APIRouter(tags=["verification"])
 logger = get_logger(__name__)
 
 # Include auth routes
@@ -62,6 +62,8 @@ class SearchRequest(BaseModel):
 
 
 @router.get("/health")
+@router.get("/v1/health")
+@router.get("/api/v1/health")
 async def health_check(db: AsyncSession = Depends(get_async_db)) -> dict:
     """Comprehensive health check checking Async DB and Redis connectivity."""
     logger.info("Health check requested")
@@ -96,6 +98,8 @@ async def health_check(db: AsyncSession = Depends(get_async_db)) -> dict:
 
 
 @router.get("/metrics")
+@router.get("/v1/metrics")
+@router.get("/api/v1/metrics")
 async def get_metrics() -> dict:
     """Get application metrics."""
     logger.info("Metrics requested")
@@ -104,6 +108,8 @@ async def get_metrics() -> dict:
 
 
 @router.post("/verify", response_model=VerifyResponse)
+@router.post("/v1/verify", response_model=VerifyResponse)
+@router.post("/api/v1/verify", response_model=VerifyResponse)
 async def verify_response(
     request: VerifyRequest,
     db: AsyncSession = Depends(get_async_db),
@@ -111,13 +117,18 @@ async def verify_response(
 ):
     """Verify an LLM-generated response asynchronously via background worker."""
     user_id = current_user["user_id"] if current_user else 1
-    logger.info(f"Verification request from user {user_id} for query: {request.query[:100]}...")
+    
+    target_text = request.llm_response or request.text or ""
+    target_query = request.query or "Verify statement facts"
+    target_platform = request.llm_platform or request.platform or "unknown"
+
+    logger.info(f"Verification request from user {user_id} for query: {target_query[:100]}...")
     
     repo = VerificationRepository(db)
     verification = await repo.create_verification(
-        query=request.query,
-        llm_response=request.llm_response,
-        llm_platform=request.llm_platform,
+        query=target_query,
+        llm_response=target_text,
+        llm_platform=target_platform,
         session_id=request.session_id
     )
     
@@ -127,7 +138,7 @@ async def verify_response(
     
     # Dispatch background worker task asynchronously
     from app.workers.verification_worker import run_verification_background_job
-    asyncio.create_task(run_verification_background_job(verification.id, request.query, request.llm_response))
+    asyncio.create_task(run_verification_background_job(verification.id, target_query, target_text))
     
     return VerifyResponse(
         verification_id=verification.id,
@@ -139,6 +150,8 @@ async def verify_response(
 
 
 @router.get("/verify/stream/{verification_id}")
+@router.get("/v1/verify/stream/{verification_id}")
+@router.get("/api/v1/verify/stream/{verification_id}")
 async def stream_verification_progress(
     verification_id: int,
     db: AsyncSession = Depends(get_async_db)

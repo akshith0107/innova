@@ -20,6 +20,11 @@ export interface Claim {
   status: ClaimStatus;
   confidence: number;
   explanation: string;
+  correction?: string;
+  risk_level?: string;
+  claimed_value?: string;
+  verified_value?: string;
+  difference?: string;
   sources: Source[];
   contradictionDetails?: string;
   elementId?: string;

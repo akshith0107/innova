@@ -74,7 +74,12 @@ async def run_verification_background_job(verification_id: int, query: str, llm_
                 claim_text=c_text,
                 llm_response=llm_response,
                 verdict=v_str,
-                confidence=conf
+                confidence=conf,
+                correction=v_item.get("correction") if isinstance(v_item, dict) else None,
+                risk_level=v_item.get("risk_level", "LOW") if isinstance(v_item, dict) else "LOW",
+                claimed_value=v_item.get("claimed_value") if isinstance(v_item, dict) else None,
+                verified_value=v_item.get("verified_value") if isinstance(v_item, dict) else None,
+                difference=v_item.get("difference") if isinstance(v_item, dict) else None
             )
             extension_claims.append(formatted_claim)
 

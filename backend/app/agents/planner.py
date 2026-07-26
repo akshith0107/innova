@@ -1,6 +1,6 @@
-"""Planner Agent for PRAMAAN AI.
+"""Planner Agent for PRAMAAN AI — Investigative Falsification Architecture.
 
-This agent understands the user's query and creates a verification plan.
+Generates Negative-Search-First verification queries to attempt to disprove claims before accepting them.
 """
 
 from typing import Dict, Any, List
@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 
 
 class PlannerAgent:
-    """Agent that plans the verification strategy."""
+    """Agent that plans negative-first falsification verification strategies."""
     
     def __init__(self, groq_service: GroqService):
         """Initialize the planner agent.
@@ -23,26 +23,36 @@ class PlannerAgent:
         self.groq_service = groq_service
         
     async def plan_verification(self, query: str, llm_response: str) -> Dict[str, Any]:
-        """Create a verification plan for the given query and LLM response asynchronously."""
-        logger.info(f"Creating verification plan for query: {query[:100]}...")
+        """Create a falsification plan with negative-search-first query ordering."""
+        logger.info(f"Creating negative-first falsification plan for query: {query[:80]}...")
         
-        system_prompt = """You are a verification planning expert. Your task is to:
-1. Analyze the user's query and the LLM response
-2. Extract key factual claims that need verification
-3. Generate effective search queries to verify these claims
-4. Assess the complexity and priority of verification
+        system_prompt = """You are a Lead Investigative Fact-Checker. Your philosophy is to TREAT EVERY CLAIM AS POTENTIALLY FALSE until disproof fails.
 
-Output a structured plan in JSON format with:
-- claims: List of specific factual claims extracted from the response
-- search_queries: List of 5-10 targeted search queries
-- priority: "high", "medium", or "low" based on claim importance
-- complexity: "simple", "moderate", or "complex" based on verification difficulty
-- domains: List of relevant domains (e.g., "science", "politics", "health")"""
+Your primary objective is to DISPROVE the claim before accepting it.
+
+For EVERY extracted claim, extract:
+- claim_type: "NUMERIC", "STATISTICAL", "MEDICAL", "HISTORICAL", "SCIENTIFIC", "FACTUAL"
+- entity: Primary subject (e.g. "India", "Australia", "Speed of light")
+- relation: Relationship or property (e.g. "has", "capital", "equals")
+- attribute: Property or state (e.g. "number of states", "capital city", "speed")
+- claimed_value: Value asserted in text (e.g. "35", "Sydney", "500 km/s")
+- risk_level: "CRITICAL" (medical/safety/legal), "HIGH" (false statistic/history), "MEDIUM", "LOW"
+
+Generate Search Queries in NEGATIVE-SEARCH-FIRST order:
+1. ground_truth_query: Neutral baseline query asking for the true value (e.g. "What is the official number of states in India?")
+2. official_source_query: Query targeting government/standards bodies (e.g. "Government of India official list of states")
+3. contradiction_query: Query searching directly for conflicting facts (e.g. "India 28 states real count")
+4. knowledge_graph_query: Query searching Wikidata/Wikipedia (e.g. "Wikidata India administrative divisions")
+5. original_claim_query: Literal claim text (Executed LAST - e.g. "India has 35 states")
+
+Output a JSON object with:
+- claims_analysis: List of objects containing claim_type, entity, relation, attribute, claimed_value, risk_level
+- search_queries: List of ALL queries ordered with Negative/Ground-Truth queries FIRST and literal query LAST!
+- priority: "high"
+- complexity: "complex"
+"""
         
-        user_message = f"""User Query: {query}
-LLM Response: {llm_response}
-
-Create a verification plan for this response."""
+        user_message = f"User Query: {query}\n\nAI Response: {llm_response}"
         
         try:
             response = await self.groq_service.async_chat_completion_json(
@@ -51,17 +61,29 @@ Create a verification plan for this response."""
                     HumanMessage(content=user_message)
                 ]
             )
-            
-            logger.info("Verification plan created successfully")
-            return response
+
+            if isinstance(response, dict):
+                queries = response.get("search_queries", [])
+                logger.info(f"Falsification plan created with {len(queries)} negative-first queries")
+                return response
             
         except Exception as e:
-            logger.error(f"Error creating verification plan: {e}")
-            # Return a basic plan as fallback
-            return {
-                "claims": [llm_response],
-                "search_queries": [query],
-                "priority": "medium",
-                "complexity": "moderate",
-                "domains": ["general"]
-            }
+            logger.error(f"Error creating falsification plan: {e}")
+
+        # Rule-based negative-first fallback generator
+        sentences = [s.strip() for s in llm_response.split(".") if len(s.strip()) > 8]
+        fallback_queries = []
+        for sentence in sentences:
+            fallback_queries.extend([
+                f"What is the official ground truth for: {sentence[:30]}",
+                f"Official government standards list for {sentence[:25]}",
+                f"Is it true that {sentence[:35]} or is it false",
+                sentence
+            ])
+
+        return {
+            "claims_analysis": [{"claim_type": "FACTUAL", "entity": "general", "claimed_value": llm_response[:50], "risk_level": "HIGH"}],
+            "search_queries": fallback_queries,
+            "priority": "high",
+            "complexity": "complex"
+        }

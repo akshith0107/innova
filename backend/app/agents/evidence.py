@@ -1,6 +1,6 @@
-"""Evidence Agent for PRAMAAN AI.
+"""Evidence Agent for PRAMAAN AI — Falsification Architecture.
 
-This agent extracts relevant evidence from retrieved documents.
+Evaluates evidence Authority, Reliability, Recency, and Independence to isolate disconfirming passages.
 """
 
 from typing import Dict, Any, List
@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 
 
 class EvidenceAgent:
-    """Agent that extracts and structures evidence from sources."""
+    """Agent that evaluates disconfirming evidence across Authority, Reliability, and Recency."""
     
     def __init__(self, groq_service: GroqService):
         """Initialize the evidence agent.
@@ -22,64 +22,69 @@ class EvidenceAgent:
         """
         self.groq_service = groq_service
         
-    async def extract_evidence(self, claim: str, sources: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Extract relevant evidence from sources for a given claim asynchronously."""
-        logger.info(f"Extracting evidence for claim: {claim[:100]}...")
+    async def extract_evidence(
+        self,
+        claim: str,
+        sources: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Extract and evaluate disconfirming evidence against authority metrics."""
+        logger.info(f"Evaluating falsification evidence metrics for claim: {claim[:80]}...")
         
-        if not sources:
-            logger.warning("No sources provided for evidence extraction")
-            return []
-        
-        # Prepare source context
-        source_context = "\n\n".join([
-            f"Source {i+1}: {source.get('title', 'Unknown')}\n"
-            f"URL: {source.get('url', 'Unknown')}\n"
-            f"Content: {source.get('content', source.get('snippet', ''))[:500]}"
-            for i, source in enumerate(sources[:10])  # Limit to top 10 sources
+        source_snippets = "\n\n".join([
+            f"Source {i+1} [{s.get('source_tier', 'Web')}] ({s.get('title', 'Untitled')}) [URL: {s.get('url', '')}]:\n{s.get('content', s.get('snippet', ''))[:400]}"
+            for i, s in enumerate(sources[:8])
         ])
         
-        system_prompt = """You are an expert at extracting relevant evidence from documents. Your task is to:
-1. Analyze the factual claim
-2. Review the provided source documents
-3. Extract specific evidence that relates to the claim
-4. Classify evidence as supporting, contradicting, or neutral
-5. Rate the relevance and confidence of each evidence
+        system_prompt = """You are an Lead Investigative Fact-Checker. Your goal is to identify evidence that FALSIFIES or REFUETS the claim first!
 
-Output a JSON object with key "evidence" containing an array of evidence items:
-- evidence_text: The exact evidence excerpt
-- source_url: URL of the source
-- source_title: Title of the source
-- relevance_score: 0.0-1.0 relevance to the claim
-- evidence_type: "supporting", "contradicting", or "neutral"
-- confidence: 0.0-1.0 confidence in evidence accuracy
-- key_facts: List of key facts extracted from the evidence"""
+Evaluate every passage for:
+1. Authority: Official government/academic bodies get 1.0; blogs get 0.2.
+2. Reliability: Peer-reviewed/official documentation.
+3. Recency: How recently updated.
+4. Independence: Third-party non-affiliated sources.
+
+Categorize evidence into THREE arrays:
+1. contradicting_evidence: Evidence passages that explicitly DISPROVE or contradict the claim (Highest Investigation Priority!).
+2. supporting_evidence: Passages that explicitly confirm the claim.
+3. neutral_evidence: Definitions or reference context.
+
+Output a JSON object with:
+- contradicting_evidence: list of objects (quote, source_title, url, authority_score, reasoning)
+- supporting_evidence: list of objects (quote, source_title, url, authority_score)
+- neutral_evidence: list of objects (quote, source_title, url)
+- evidence_strength: float (0.0 - 100.0)
+- source_authority_score: float (0.0 - 100.0)
+- summary: str
+"""
         
         try:
             response = await self.groq_service.async_chat_completion_json(
                 messages=[
                     SystemMessage(content=system_prompt),
-                    HumanMessage(content=f"""Claim: {claim}
-
-Sources:
-{source_context}
-
-Extract relevant evidence for this claim.""")
+                    HumanMessage(content=f"Claim: {claim}\n\nRetrieved Authority Sources:\n{source_snippets}")
                 ]
             )
-            
-            evidence_list = response.get("evidence", []) if isinstance(response, dict) else (response if isinstance(response, list) else [])
-            logger.info(f"Extracted {len(evidence_list)} evidence items")
-            return evidence_list
-            
+
+            if isinstance(response, dict):
+                return {
+                    "claim": claim,
+                    "contradicting_evidence": response.get("contradicting_evidence", []),
+                    "supporting_evidence": response.get("supporting_evidence", []),
+                    "neutral_evidence": response.get("neutral_evidence", []),
+                    "evidence_strength": float(response.get("evidence_strength", 75.0)),
+                    "source_authority_score": float(response.get("source_authority_score", 85.0)),
+                    "summary": response.get("summary", "Falsification evidence evaluation finished.")
+                }
         except Exception as e:
-            logger.error(f"Error extracting evidence: {e}")
-            # Fallback: create basic evidence from sources
-            return [{
-                "evidence_text": source.get("content", source.get("snippet", ""))[:200],
-                "source_url": source.get("url", ""),
-                "source_title": source.get("title", "Unknown"),
-                "relevance_score": 0.5,
-                "evidence_type": "neutral",
-                "confidence": 0.3,
-                "key_facts": []
-            } for source in sources[:3]]
+            logger.error(f"Error in EvidenceAgent: {e}")
+
+        # Rule-based fallback
+        return {
+            "claim": claim,
+            "contradicting_evidence": [],
+            "supporting_evidence": [],
+            "neutral_evidence": [],
+            "evidence_strength": 50.0,
+            "source_authority_score": 70.0,
+            "summary": "Fallback evidence extraction."
+        }

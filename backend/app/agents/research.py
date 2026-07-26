@@ -1,6 +1,6 @@
-"""Research Agent for PRAMAAN AI.
+"""Research Agent for PRAMAAN AI — Negative-First Falsification Engine.
 
-This agent performs RAG-based research using multiple data sources with layered trust approach.
+Executes queries in Negative-First order with strict Source Authority Hierarchy weighting.
 """
 
 from typing import Dict, Any, List, Optional
@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 
 
 class ResearchAgent:
-    """Agent that retrieves information from multiple sources with layered trust."""
+    """Agent that performs negative-first falsification research across authoritative sources."""
     
     def __init__(
         self,
@@ -27,16 +27,6 @@ class ResearchAgent:
         wikidata_service: Optional[WikidataService] = None,
         rag_service: Optional[RAGService] = None
     ):
-        """Initialize the research agent with layered trust sources.
-        
-        Args:
-            tavily_service: Service for web search (Layer 3 - Web)
-            wikipedia_service: Service for Wikipedia search (Layer 2 - Knowledge)
-            openalex_service: Service for academic research (Layer 1 - Academic)
-            semantic_scholar_service: Service for scientific literature (Layer 1 - Academic)
-            wikidata_service: Service for knowledge graph (Layer 2 - Knowledge)
-            rag_service: Optional service for RAG semantic retrieval (Layer 2 - Knowledge)
-        """
         self.tavily_service = tavily_service
         self.wikipedia_service = wikipedia_service
         self.openalex_service = openalex_service
@@ -45,158 +35,79 @@ class ResearchAgent:
         self.rag_service = rag_service
         
     async def research_claim(self, claim: str, search_queries: List[str]) -> Dict[str, Any]:
-        """Research a claim using layered trust approach.
-        
-        Layer 1 (Highest Trust): Academic sources (OpenAlex, Semantic Scholar)
-        Layer 2 (Medium Trust): Knowledge sources (Wikipedia, Wikidata, RAG)
-        Layer 3 (Base Trust): Web sources (Tavily)
-        
-        Args:
-            claim: The factual claim to research
-            search_queries: List of search queries for the claim
-            
-        Returns:
-            Dictionary containing results from all sources with trust layers
-        """
-        logger.info(f"Researching claim with layered trust: {claim[:100]}...")
+        """Execute negative-first research order with Source Authority Hierarchy weighting."""
+        logger.info(f"Executing negative-first falsification research for: {claim[:80]}...")
         
         results = {
-            "layer1_academic": [],  # Highest trust
-            "layer2_knowledge": [],  # Medium trust
-            "layer3_web": [],  # Base trust
+            "official_sources": [],      # Priority 1: Government / Official
+            "academic_sources": [],      # Priority 2: Peer-Reviewed Papers
+            "knowledge_sources": [],     # Priority 3: Wikidata / Wikipedia
+            "web_sources": [],           # Priority 4: Web
             "all_sources": []
         }
+
+        # Formulate Negative-First query order: Ground Truth -> Official -> Contradiction -> Literal
+        ground_truth_q = f"What is the official true value for: {claim[:50]}"
+        official_q = f"Official government standards document for {claim[:40]}"
+        contradiction_q = f"Why is {claim[:40]} incorrect or false"
         
-        # LAYER 1: Academic Sources (Highest Trust)
-        logger.info("Layer 1: Searching academic sources...")
-        
-        # OpenAlex - Academic research database
+        query_sequence = [ground_truth_q, official_q, contradiction_q] + search_queries + [claim]
+        unique_queries = list(dict.fromkeys(query_sequence))[:6]
+
+        # 1. Academic & Peer-Reviewed Sources (OpenAlex / Semantic Scholar)
         if self.openalex_service:
             try:
-                openalex_results = await self.openalex_service.search_works(claim)
-                for result in openalex_results:
-                    result["trust_layer"] = 1
-                    result["source_type"] = "academic"
-                    result["credibility_boost"] = 0.3
-                results["layer1_academic"].extend(openalex_results)
-                logger.info(f"OpenAlex: {len(openalex_results)} papers found")
+                openalex_res = await self.openalex_service.search_works(claim)
+                for item in openalex_res:
+                    item["authority_score"] = 0.95
+                    item["source_tier"] = "Academic / Peer-Reviewed"
+                results["academic_sources"].extend(openalex_res)
             except Exception as e:
-                logger.error(f"Error in OpenAlex search: {e}")
-        
-        # Semantic Scholar - Scientific literature
-        if self.semantic_scholar_service:
-            try:
-                semantic_results = await self.semantic_scholar_service.search_papers(claim)
-                for result in semantic_results:
-                    result["trust_layer"] = 1
-                    result["source_type"] = "academic"
-                    result["credibility_boost"] = 0.3
-                results["layer1_academic"].extend(semantic_results)
-                logger.info(f"Semantic Scholar: {len(semantic_results)} papers found")
-            except Exception as e:
-                logger.error(f"Error in Semantic Scholar search: {e}")
-        
-        # LAYER 2: Knowledge Sources (Medium Trust)
-        logger.info("Layer 2: Searching knowledge sources...")
-        
-        # Wikipedia - Encyclopedia
+                logger.error(f"OpenAlex search error: {e}")
+
+        # 2. Knowledge Graphs & Wikipedia
         try:
-            wiki_results = await self.wikipedia_service.search(claim)
-            for result in wiki_results:
-                result["trust_layer"] = 2
-                result["source_type"] = "knowledge"
-                result["credibility_boost"] = 0.15
-            results["layer2_knowledge"].extend(wiki_results)
-            logger.info(f"Wikipedia: {len(wiki_results)} articles found")
+            wiki_res = await self.wikipedia_service.search(claim)
+            for item in wiki_res:
+                item["authority_score"] = 0.85
+                item["source_tier"] = "Knowledge Base"
+            results["knowledge_sources"].extend(wiki_res)
         except Exception as e:
-            logger.error(f"Error in Wikipedia search: {e}")
-        
-        # Wikidata - Knowledge graph
-        if self.wikidata_service:
+            logger.error(f"Wikipedia search error: {e}")
+
+        # 3. Web Search across Negative-First Sequence
+        for q in unique_queries:
             try:
-                wikidata_results = await self.wikidata_service.search_entities(claim)
-                for result in wikidata_results:
-                    result["trust_layer"] = 2
-                    result["source_type"] = "knowledge"
-                    result["credibility_boost"] = 0.15
-                results["layer2_knowledge"].extend(wikidata_results)
-                logger.info(f"Wikidata: {len(wikidata_results)} entities found")
-            except Exception as e:
-                logger.error(f"Error in Wikidata search: {e}")
-        
-        # RAG - Uploaded documents
-        if self.rag_service:
-            try:
-                rag_results = await self.rag_service.retrieve_relevant(
-                    query=claim,
-                    limit=5,
-                    score_threshold=0.5
-                )
-                for rag_result in rag_results:
-                    payload = rag_result.get("payload", {})
-                    rag_source = {
-                        "title": payload.get("filename", "RAG Document"),
-                        "url": f"document://{payload.get('document_id', 'unknown')}",
-                        "content": payload.get("text", ""),
-                        "score": rag_result.get("score", 0.0),
-                        "trust_layer": 2,
-                        "source_type": "rag",
-                        "credibility_boost": 0.1,
-                        "chunk_id": payload.get("chunk_id", -1)
-                    }
-                    results["layer2_knowledge"].append(rag_source)
-                logger.info(f"RAG: {len(rag_results)} chunks found")
-            except Exception as e:
-                logger.error(f"Error in RAG retrieval: {e}")
-        
-        # LAYER 3: Web Sources (Base Trust)
-        logger.info("Layer 3: Searching web sources...")
-        
-        # Tavily - Web search
-        try:
-            for query in search_queries[:3]:  # Limit to top 3 queries
                 if hasattr(self.tavily_service, "search_async"):
-                    web_results = await self.tavily_service.search_async(query)
+                    web_res = await self.tavily_service.search_async(q)
                 else:
                     import asyncio
-                    web_results = await asyncio.to_thread(self.tavily_service.search, query)
-                    
-                tavily_items = web_results if isinstance(web_results, list) else web_results.get("results", [])
-                for result in tavily_items:
-                    result["trust_layer"] = 3
-                    result["source_type"] = "web"
-                    result["credibility_boost"] = 0.0
-                results["layer3_web"].extend(tavily_items)
-            logger.info(f"Tavily: {len(results['layer3_web'])} web results found")
-        except Exception as e:
-            logger.error(f"Error in web search: {e}")
-        
-        # Combine all sources with layer ordering (Layer 1 first)
-        all_sources = []
-        all_sources.extend(results["layer1_academic"])  # Highest trust first
-        all_sources.extend(results["layer2_knowledge"])  # Medium trust
-        all_sources.extend(results["layer3_web"])  # Base trust last
-        
-        # Deduplicate by URL while preserving layer order
-        seen_urls = set()
+                    web_res = await asyncio.to_thread(self.tavily_service.search, q)
+                
+                items = web_res if isinstance(web_res, list) else web_res.get("results", [])
+                for item in items:
+                    url = item.get("url", "").lower()
+                    if ".gov" in url or ".org" in url or "official" in url:
+                        item["authority_score"] = 0.98
+                        item["source_tier"] = "Official / Government"
+                        results["official_sources"].append(item)
+                    else:
+                        item["authority_score"] = 0.70
+                        item["source_tier"] = "Web Source"
+                        results["web_sources"].append(item)
+            except Exception as e:
+                logger.error(f"Tavily search error for negative query '{q}': {e}")
+
+        # Order sources strictly by Authority Hierarchy (Official -> Academic -> Knowledge -> Web)
+        all_sources = results["official_sources"] + results["academic_sources"] + results["knowledge_sources"] + results["web_sources"]
+        seen = set()
         unique_sources = []
-        for source in all_sources:
-            url = source.get("url", "")
-            if url and url not in seen_urls:
-                seen_urls.add(url)
-                unique_sources.append(source)
-        
+        for s in all_sources:
+            url = s.get("url", "")
+            if url and url not in seen:
+                seen.add(url)
+                unique_sources.append(s)
+
         results["all_sources"] = unique_sources
-        
-        # Summary statistics
-        layer_stats = {
-            "layer1_count": len(results["layer1_academic"]),
-            "layer2_count": len(results["layer2_knowledge"]),
-            "layer3_count": len(results["layer3_web"]),
-            "total_unique": len(unique_sources)
-        }
-        
-        logger.info(f"Research complete - Layer stats: {layer_stats}")
-        results["layer_stats"] = layer_stats
-        
+        logger.info(f"Falsification research complete with {len(unique_sources)} authority-ranked sources")
         return results

@@ -1,22 +1,19 @@
-"""Report Agent for PRAMAAN AI.
+"""Report Agent for PRAMAAN AI — Asymmetric Risk-Weighted Falsification Architecture.
 
-Generates multi-dimensional verification reports with 5 score dimensions,
-topic coverage metrics, and complete claim breakdown.
+Calculates Asymmetric Risk-Weighted Trust Scores and sorts claims by risk severity (Supported Claims LAST!).
 """
 
 from typing import Dict, Any, List
 from datetime import datetime
-from langchain_core.messages import HumanMessage, SystemMessage
-from app.services.groq_service import GroqService
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 class ReportAgent:
-    """Agent that generates multi-dimensional verification reports."""
+    """Agent that calculates Asymmetric Risk-Weighted Trust Scores and sorts claims by risk priority."""
     
-    def __init__(self, groq_service: GroqService):
+    def __init__(self, groq_service: Any):
         """Initialize the report agent.
         
         Args:
@@ -33,71 +30,71 @@ class ReportAgent:
         alignment_data: Dict[str, Any] = None,
         quality_data: Dict[str, Any] = None
     ) -> Dict[str, Any]:
-        """Generate a comprehensive 5-dimensional verification report asynchronously."""
-        logger.info("Generating multi-dimensional verification report...")
+        """Generate risk-weighted report with disconfirming corrections and severe penalties for false claims."""
+        logger.info("Generating Asymmetric Risk-Weighted Falsification Report...")
         
         alignment = alignment_data or {}
         quality = quality_data or {}
 
-        relevance_score = float(quality.get("relevance_score", alignment.get("relevance_score", 90.0)))
-        completeness_score = float(quality.get("completeness_score", alignment.get("completeness_score", 90.0)))
+        relevance_score = float(quality.get("relevance_score", 90.0))
+        completeness_score = float(quality.get("completeness_score", 90.0))
 
-        # Fact Accuracy Calculation
-        if verdicts:
-            supported_count = sum(1 for v in verdicts if v.get("verdict") in ["SUPPORTED", "TRUE"])
-            contradicted_count = sum(1 for v in verdicts if v.get("verdict") in ["CONTRADICTED", "FALSE"])
-            total_evaluable = max(1, supported_count + contradicted_count)
-            fact_accuracy_score = round((supported_count / total_evaluable) * 100, 1) if total_evaluable > 0 else 75.0
-            hallucination_risk_score = round((contradicted_count / len(verdicts)) * 100, 1)
-        else:
-            fact_accuracy_score = 100.0
-            hallucination_risk_score = 0.0
+        # Asymmetric Risk Penalty Calculation
+        contradicted_count = sum(1 for v in verdicts if v.get("verdict") in ["CONTRADICTED", "FALSE"])
+        critical_false_count = sum(1 for v in verdicts if v.get("verdict") == "CONTRADICTED" and v.get("risk_level") == "CRITICAL")
+        unverified_count = sum(1 for v in verdicts if v.get("verdict") in ["UNSUPPORTED", "INSUFFICIENT_EVIDENCE"])
+        supported_count = sum(1 for v in verdicts if v.get("verdict") in ["SUPPORTED", "TRUE"])
 
-        # Weighted Overall Quality Score formula
-        overall_quality_score = round(
-            (0.35 * fact_accuracy_score) +
-            (0.35 * relevance_score) +
-            (0.30 * completeness_score),
-            1
-        )
+        # Severe penalty for false facts: -35 per contradicted claim, -25 additional for critical false claim
+        penalty = (35.0 * contradicted_count) + (25.0 * critical_false_count) + (10.0 * unverified_count)
+        trust_score = max(0.0, round(100.0 - penalty, 1))
 
-        claims_context = "\n\n".join([
-            f"Claim {i+1}: {v.get('claim', claim.get('claim_text', ''))}\n"
-            f"Verdict: {v.get('verdict', 'UNSUPPORTED')}\n"
-            f"Confidence: {v.get('confidence', 0.5):.2f}\n"
-            f"Reasoning: {v.get('reasoning', '')}"
-            for i, (claim, v) in enumerate(zip(claims, verdicts))
-        ])
+        fact_accuracy_score = round((supported_count / max(1, len(verdicts))) * 100, 1)
+        hallucination_risk_score = round((contradicted_count / max(1, len(verdicts))) * 100, 1)
 
-        system_prompt = """You are an expert Report Synthesis Agent. Generate an executive report summarizing the AI response evaluation.
+        # Risk Priority Sorting: 1. Critical/Contradicted (Red) -> 2. Partially Supported (Amber) -> 3. Unverified (Grey) -> 4. Supported (Green) LAST!
+        def get_risk_rank(item: tuple) -> int:
+            v_dict = item[1] if isinstance(item[1], dict) else {}
+            v_str = str(v_dict.get("verdict", "")).upper()
+            r_str = str(v_dict.get("risk_level", "")).upper()
 
-Include:
-1. Executive summary addressing prompt relevance, completeness, and factual accuracy.
-2. Key insights and recommendations.
-3. Summary of sources and evidence.
+            if v_str in ["CONTRADICTED", "FALSE"]:
+                return 0 if r_str == "CRITICAL" else 1
+            if v_str in ["PARTIALLY_SUPPORTED", "MIXED"]:
+                return 2
+            if v_str in ["UNSUPPORTED", "INSUFFICIENT_EVIDENCE"]:
+                return 3
+            return 4  # Supported claims LAST!
 
-Output a JSON object with:
-- summary: str
-- key_insights: list of strings
-- recommendations: list of strings
-- source_summary: str
-"""
+        paired_claims = list(zip(claims, verdicts))
+        paired_claims.sort(key=get_risk_rank)
 
-        try:
-            response = await self.groq_service.async_chat_completion_json(
-                messages=[
-                    SystemMessage(content=system_prompt),
-                    HumanMessage(content=f"Query: {query}\nResponse: {llm_response[:400]}\n\nClaims & Verdicts:\n{claims_context}")
-                ]
-            )
-        except Exception as e:
-            logger.error(f"Error generating report text: {e}")
-            response = {}
+        formatted_claims = []
+        for claim, v in paired_claims:
+            c_text = claim.get("claim_text", "") if isinstance(claim, dict) else str(claim)
+            formatted_claims.append({
+                "claim": v.get("claim", c_text),
+                "verdict": v.get("verdict", "UNSUPPORTED"),
+                "confidence": v.get("confidence", 0.90),
+                "risk_level": v.get("risk_level", "LOW"),
+                "claimed_value": v.get("claimed_value", None),
+                "verified_value": v.get("verified_value", None),
+                "difference": v.get("difference", None),
+                "correction": v.get("correction", None),
+                "reasoning": v.get("reasoning", ""),
+                "supporting_evidence": v.get("supporting_evidence", []),
+                "contradicting_evidence": v.get("contradicting_evidence", [])
+            })
+
+        trust_level = "High" if trust_score >= 80 else "Medium" if trust_score >= 50 else "Low"
+        if contradicted_count > 0:
+            trust_level = "Low (Factual Contradictions Detected)"
 
         return {
             "query": query,
             "llm_response": llm_response,
-            "overall_quality_score": overall_quality_score,
+            "overall_quality_score": trust_score,
+            "trust_score": trust_score,
             "fact_accuracy_score": fact_accuracy_score,
             "relevance_score": relevance_score,
             "completeness_score": completeness_score,
@@ -107,20 +104,8 @@ Output a JSON object with:
             "expected_topics": alignment.get("expected_topics", []),
             "covered_topics": alignment.get("covered_topics", []),
             "missing_topics": alignment.get("missing_topics", []),
-            "trust_level": "High" if overall_quality_score >= 80 else "Medium" if overall_quality_score >= 50 else "Low",
-            "summary": response.get("summary", f"Evaluation completed with overall quality score {overall_quality_score}%."),
-            "claims": [
-                {
-                    "claim": v.get("claim", claim.get("claim_text", "")),
-                    "verdict": v.get("verdict", "UNSUPPORTED"),
-                    "confidence": v.get("confidence", 0.5),
-                    "reasoning": v.get("reasoning", ""),
-                    "key_factors": v.get("key_factors", [])
-                }
-                for claim, v in zip(claims, verdicts)
-            ],
-            "key_insights": response.get("key_insights", []),
-            "recommendations": response.get("recommendations", []),
-            "source_summary": response.get("source_summary", "Multi-source evidence synthesis."),
+            "trust_level": trust_level,
+            "summary": f"Falsification analysis finished. Discovered {contradicted_count} factual error(s). Overall trust score penalty applied: {trust_score}%.",
+            "claims": formatted_claims,
             "verification_date": datetime.utcnow().isoformat()
         }
