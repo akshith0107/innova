@@ -37,7 +37,16 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 # Synchronous fallback engine for CLI/migration scripts
-engine = create_engine(settings.database_url, echo=settings.debug)
+sync_db_url = settings.database_url
+if sync_db_url.startswith("postgres://"):
+    sync_db_url = sync_db_url.replace("postgres://", "postgresql://", 1)
+
+try:
+    engine = create_engine(sync_db_url, echo=settings.debug)
+except Exception as e:
+    logger.warning(f"Could not create sync engine for {sync_db_url}, falling back to SQLite: {e}")
+    engine = create_engine("sqlite:///./pramaan.db", echo=settings.debug)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
