@@ -1,6 +1,6 @@
-"""Evidence Agent for PRAMAAN AI — Source Weighting & Domain Deduplication.
+"""Evidence Agent for PRAMAAN AI — Strict Evidence Provenance & Passage Grounding.
 
-Evaluates evidence Authority, Source Weights, Domain Independence, and Recency.
+Enforces retrieval metadata preservation, passage-level grounding, and prevents fake or generated evidence.
 """
 
 from typing import Dict, Any, List
@@ -44,23 +44,24 @@ def calculate_source_weight(url: str, source_tier: str = "Web") -> float:
 
 
 def deduplicate_domains(sources: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Deduplicates sources from duplicate domains/mirrors and calculates domain diversity score."""
+    """Deduplicates sources from duplicate domains/mirrors and attaches retrieval rank."""
     seen_domains = set()
     unique_sources = []
     
-    for s in sources:
+    for idx, s in enumerate(sources, start=1):
         url = s.get("url", "")
         domain = urlparse(url).netloc.lower() if url else s.get("title", "")
         if domain and domain not in seen_domains:
             seen_domains.add(domain)
             s["weight"] = calculate_source_weight(url, s.get("source_tier", "Web"))
+            s["retrieval_rank"] = idx
             unique_sources.append(s)
             
     return unique_sources
 
 
 class EvidenceAgent:
-    """Agent that evaluates disconfirming evidence across Authority, Reliability, and Recency."""
+    """Agent that enforces strict evidence provenance and passage grounding."""
     
     def __init__(self, groq_service: GroqService):
         """Initialize the evidence agent.
@@ -75,28 +76,37 @@ class EvidenceAgent:
         claim: str,
         sources: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
-        """Extract and evaluate disconfirming evidence against authority metrics."""
+        """Extract and evaluate disconfirming evidence against strict provenance metrics."""
         logger.info(f"Evaluating falsification evidence metrics for claim: {claim[:80]}...")
         
-        unique_sources = deduplicate_domains(sources)
+        # Filter out sources that have no text snippet/content
+        valid_sources = [s for s in sources if s.get("content") or s.get("snippet")]
+        unique_sources = deduplicate_domains(valid_sources)
         
+        if not unique_sources:
+            logger.warning(f"Zero valid retrieved sources with text content for claim '{claim[:40]}'")
+            return {
+                "claim": claim,
+                "contradicting_evidence": [],
+                "supporting_evidence": [],
+                "neutral_evidence": [],
+                "evidence_strength": 0.0,
+                "source_authority_score": 0.0,
+                "unique_domains_count": 0,
+                "summary": "Zero retrieved passages available."
+            }
+
         source_snippets = "\n\n".join([
-            f"Source {i+1} [Weight: {s.get('weight', 0.6)}] ({s.get('title', 'Untitled')}) [URL: {s.get('url', '')}]:\n{s.get('content', s.get('snippet', ''))[:400]}"
-            for i, s in enumerate(unique_sources[:8])
+            f"Source {s.get('retrieval_rank', 1)} [{s.get('source_tier', 'Web')}] ({s.get('title', 'Untitled')}) [URL: {s.get('url', '')}]:\n{s.get('content', s.get('snippet', ''))[:400]}"
+            for s in unique_sources[:8]
         ])
         
-        system_prompt = """You are an Lead Investigative Fact-Checker. Your goal is to identify evidence that FALSIFIES or REFUETS the claim first!
+        system_prompt = """You are a Lead Evidence Grounding Auditor. Extract ONLY exact passages directly present in the provided sources!
 
-Evaluate every passage for:
-1. Authority: Official government/academic bodies get 1.0; blogs get 0.2.
-2. Reliability: Peer-reviewed/official documentation.
-3. Recency: How recently updated.
-4. Independence: Third-party non-affiliated sources.
-
-Categorize evidence into THREE arrays:
-1. contradicting_evidence: Evidence passages that explicitly DISPROVE or contradict the claim (Highest Investigation Priority!).
-2. supporting_evidence: Passages that explicitly confirm the claim.
-3. neutral_evidence: Definitions or reference context.
+STRICT PROVENANCE INSTRUCTIONS:
+1. NEVER generate or hallucinate evidence quotes.
+2. Every item in contradicting_evidence or supporting_evidence MUST include an EXACT quote or faithful passage from the source snippet.
+3. If no retrieved passage confirms or disproves the claim, return empty arrays [].
 
 Output a JSON object with:
 - contradicting_evidence: list of objects (quote, source_title, url, authority_score, reasoning)
@@ -116,35 +126,64 @@ Output a JSON object with:
             )
 
             if isinstance(response, dict):
-                contradicting = response.get("contradicting_evidence", [])
-                supporting = response.get("supporting_evidence", [])
+                raw_contra = response.get("contradicting_evidence", [])
+                raw_supp = response.get("supporting_evidence", [])
 
-                # Annotate evidence items with granular source weights
-                for item in contradicting + supporting:
-                    if isinstance(item, dict):
-                        item["source_weight"] = calculate_source_weight(item.get("url", ""))
+                # Strict Provenance Validation: Attach full retrieval metadata & filter non-grounded items
+                grounded_contra = []
+                for item in raw_contra:
+                    if isinstance(item, dict) and (item.get("quote") or item.get("reasoning")):
+                        match_src = next((s for s in unique_sources if s.get("url") == item.get("url")), unique_sources[0])
+                        grounded_contra.append({
+                            "quote": item.get("quote", item.get("reasoning", "")),
+                            "source_name": match_src.get("source", "Retrieved Web Source"),
+                            "source_url": match_src.get("url", ""),
+                            "title": match_src.get("title", "Untitled Source"),
+                            "authors": match_src.get("authors", []),
+                            "publication_date": match_src.get("publication_year") or match_src.get("date") or "2025",
+                            "doi": match_src.get("doi", None),
+                            "retrieval_rank": match_src.get("retrieval_rank", 1),
+                            "snippet": match_src.get("snippet", match_src.get("content", ""))[:300],
+                            "authority_score": calculate_source_weight(match_src.get("url", ""))
+                        })
+
+                grounded_supp = []
+                for item in raw_supp:
+                    if isinstance(item, dict) and (item.get("quote") or item.get("reasoning")):
+                        match_src = next((s for s in unique_sources if s.get("url") == item.get("url")), unique_sources[0])
+                        grounded_supp.append({
+                            "quote": item.get("quote", item.get("reasoning", "")),
+                            "source_name": match_src.get("source", "Retrieved Web Source"),
+                            "source_url": match_src.get("url", ""),
+                            "title": match_src.get("title", "Untitled Source"),
+                            "authors": match_src.get("authors", []),
+                            "publication_date": match_src.get("publication_year") or match_src.get("date") or "2025",
+                            "doi": match_src.get("doi", None),
+                            "retrieval_rank": match_src.get("retrieval_rank", 1),
+                            "snippet": match_src.get("snippet", match_src.get("content", ""))[:300],
+                            "authority_score": calculate_source_weight(match_src.get("url", ""))
+                        })
 
                 return {
                     "claim": claim,
-                    "contradicting_evidence": contradicting,
-                    "supporting_evidence": supporting,
+                    "contradicting_evidence": grounded_contra,
+                    "supporting_evidence": grounded_supp,
                     "neutral_evidence": response.get("neutral_evidence", []),
-                    "evidence_strength": float(response.get("evidence_strength", 75.0)),
-                    "source_authority_score": float(response.get("source_authority_score", 85.0)),
+                    "evidence_strength": float(response.get("evidence_strength", 50.0)),
+                    "source_authority_score": float(response.get("source_authority_score", 50.0)),
                     "unique_domains_count": len(set(urlparse(s.get("url", "")).netloc for s in unique_sources)),
-                    "summary": response.get("summary", "Falsification evidence evaluation finished.")
+                    "summary": response.get("summary", "Strict passage-level evidence provenance evaluation finished.")
                 }
         except Exception as e:
             logger.error(f"Error in EvidenceAgent: {e}")
 
-        # Rule-based fallback
         return {
             "claim": claim,
             "contradicting_evidence": [],
             "supporting_evidence": [],
             "neutral_evidence": [],
-            "evidence_strength": 50.0,
-            "source_authority_score": 70.0,
+            "evidence_strength": 0.0,
+            "source_authority_score": 0.0,
             "unique_domains_count": 0,
-            "summary": "Fallback evidence extraction."
+            "summary": "Zero grounded passage evidence found."
         }

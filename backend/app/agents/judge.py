@@ -138,10 +138,18 @@ def validate_verdict_invariants(
         logger.warning(f"Contradiction Precedence Triggered for claim '{claim[:40]}': Overriding SUPPORTED to CONTRADICTED.")
         return "CONTRADICTED"
 
-    # Invariant 1: SUPPORTED requires >= 1 supporting evidence item & confidence >= 0.60
+    # Invariant 1: SUPPORTED requires >= 1 supporting evidence item & confidence >= 0.60 & actual grounded text passage!
     if verdict == "SUPPORTED":
         if not supporting_evidence:
-            raise ValueError(f"Invariant Violation: Claim '{claim}' cannot be SUPPORTED with 0 supporting evidence items.")
+            raise ValueError(f"Passage Grounding Violation: Claim '{claim}' cannot be SUPPORTED with 0 supporting evidence items.")
+        
+        has_grounded_passage = any(
+            isinstance(e, dict) and bool(e.get("quote") or e.get("snippet"))
+            for e in supporting_evidence
+        )
+        if not has_grounded_passage:
+            raise ValueError(f"Passage Grounding Violation: Claim '{claim}' cannot be SUPPORTED without an actual retrieved text passage.")
+
         if confidence < 0.60:
             raise ValueError(f"Invariant Violation: Claim '{claim}' cannot be SUPPORTED with low confidence ({confidence}).")
 

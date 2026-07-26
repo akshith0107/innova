@@ -9,7 +9,7 @@ export type PlatformType =
   | "deepseek"
   | "copilot";
 
-export type ClaimStatus = "verified" | "pending" | "contradicted" | "unverified";
+export type ClaimStatus = "verified" | "pending" | "contradicted" | "unverified" | "unsupported";
 export type TrustLevel = "high" | "medium" | "low" | "unrated";
 export type UserPlan = "free" | "pro" | "enterprise";
 export type ThemeMode = "dark" | "light" | "system";

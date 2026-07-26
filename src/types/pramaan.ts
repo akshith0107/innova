@@ -1,4 +1,4 @@
-export type ClaimStatus = 'verified' | 'needs_review' | 'contradicted' | 'analyzing';
+export type ClaimStatus = 'verified' | 'needs_review' | 'contradicted' | 'analyzing' | 'unsupported';
 
 export type LLMProvider = 'chatgpt' | 'gemini' | 'claude' | 'perplexity' | 'grok' | 'deepseek' | 'copilot';
 

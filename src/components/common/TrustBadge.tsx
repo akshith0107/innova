@@ -43,6 +43,13 @@ export const TrustBadge: React.FC<TrustBadgeProps> = ({
         icon: Sparkles,
         label: 'Analyzing',
       },
+      unsupported: {
+        bg: 'bg-zinc-950/40',
+        border: 'border-zinc-500/30',
+        text: 'text-zinc-300',
+        icon: AlertTriangle,
+        label: 'Unsupported',
+      },
     };
 
     const config = configMap[status] || configMap.verified;

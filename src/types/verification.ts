@@ -1,4 +1,4 @@
-export type ClaimStatus = 'verified' | 'needs_review' | 'contradicted' | 'analyzing';
+export type ClaimStatus = 'verified' | 'needs_review' | 'contradicted' | 'analyzing' | 'unsupported';
 
 export interface Source {
   id: string;
