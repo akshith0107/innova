@@ -179,6 +179,8 @@ async def stream_verification_progress(
 
 
 @router.get("/report/{verification_id}")
+@router.get("/v1/report/{verification_id}")
+@router.get("/api/v1/report/{verification_id}")
 async def get_report(
     verification_id: int,
     db: AsyncSession = Depends(get_async_db),
@@ -220,6 +222,8 @@ async def get_report(
 
 
 @router.get("/history")
+@router.get("/v1/history")
+@router.get("/api/v1/history")
 async def get_history(
     skip: int = 0,
     limit: int = 10,

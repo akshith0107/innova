@@ -162,7 +162,7 @@ def create_verification_workflow(
             research = state["research_results"].get(claim_text, {})
             sources = research.get("all_sources", [])
             evidence = await evidence_agent.extract_evidence(claim_text, sources)
-            all_evidence.extend(evidence)
+            all_evidence.append(evidence)
         state["evidence"] = all_evidence
         return state
     
@@ -200,10 +200,10 @@ def create_verification_workflow(
         """Judge node: Evaluate claims and render multi-status verdicts (Supported, Contradicted, Unsupported)."""
         logger.info("Executing Judge Agent")
         verdicts = []
-        for claim, debate_result in zip(state["claims"], state["debate_results"]):
+        for claim, debate_result, ev_item in zip(state["claims"], state["debate_results"], state.get("evidence", [])):
             claim_text = claim.get("claim_text", "") if isinstance(claim, dict) else str(claim)
             debate = debate_result.get("debate", {})
-            verdict = await judge.evaluate_claim(claim_text, debate, state["ranked_sources"])
+            verdict = await judge.evaluate_claim(claim_text, debate, state["ranked_sources"], evidence_data=ev_item)
             verdicts.append(verdict)
         state["verdicts"] = verdicts
         return state
@@ -229,8 +229,8 @@ def create_verification_workflow(
     workflow.add_node("answer_quality", answer_quality_node)
     workflow.add_node("planner", plan_node)
     workflow.add_node("claim_extraction", extract_claims_node)
-    workflow.add_node("research", research_node)
-    workflow.add_node("evidence", evidence_node)
+    workflow.add_node("research_execution", research_node)
+    workflow.add_node("evidence_extraction", evidence_node)
     workflow.add_node("ranking", ranking_node)
     workflow.add_node("debate", debate_node)
     workflow.add_node("judge", judge_node)
@@ -240,9 +240,9 @@ def create_verification_workflow(
     workflow.add_edge("prompt_alignment", "answer_quality")
     workflow.add_edge("answer_quality", "planner")
     workflow.add_edge("planner", "claim_extraction")
-    workflow.add_edge("claim_extraction", "research")
-    workflow.add_edge("research", "evidence")
-    workflow.add_edge("evidence", "ranking")
+    workflow.add_edge("claim_extraction", "research_execution")
+    workflow.add_edge("research_execution", "evidence_extraction")
+    workflow.add_edge("evidence_extraction", "ranking")
     workflow.add_edge("ranking", "debate")
     workflow.add_edge("debate", "judge")
     workflow.add_edge("judge", "report")

@@ -50,7 +50,7 @@ class ReportAgent:
         trust_score = max(0.0, round(100.0 - penalty, 1))
 
         fact_accuracy_score = round((supported_count / max(1, len(verdicts))) * 100, 1)
-        hallucination_risk_score = round((contradicted_count / max(1, len(verdicts))) * 100, 1)
+        hallucination_risk_score = round(((contradicted_count + (0.5 * unverified_count)) / max(1, len(verdicts))) * 100, 1)
 
         # Risk Priority Sorting: 1. Critical/Contradicted (Red) -> 2. Partially Supported (Amber) -> 3. Unverified (Grey) -> 4. Supported (Green) LAST!
         def get_risk_rank(item: tuple) -> int:

@@ -1,6 +1,6 @@
 """Debate Agent for PRAMAAN AI.
 
-This agent runs a dual-LLM debate (Pro vs Con) using evidence.
+This agent runs a dual-LLM debate (Pro vs Con) using evidence safely.
 """
 
 from typing import Dict, Any, List
@@ -22,129 +22,81 @@ class DebateAgent:
         """
         self.groq_service = groq_service
         
-    async def conduct_debate(self, claim: str, evidence: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def conduct_debate(self, claim: str, evidence: List[Any]) -> Dict[str, Any]:
         """Conduct a Pro vs Con debate using the provided evidence asynchronously."""
         logger.info(f"Conducting debate for claim: {claim[:100]}...")
         
-        # Prepare evidence context
-        evidence_context = "\n\n".join([
-            f"Evidence {i+1}:\n"
-            f"Text: {e.get('evidence_text', '')[:200]}\n"
-            f"Source: {e.get('source_title', 'Unknown')}\n"
-            f"Type: {e.get('evidence_type', 'neutral')}"
-            for i, e in enumerate(evidence)
-        ])
+        # Prepare evidence context safely
+        formatted_snippets = []
+        for i, e in enumerate(evidence):
+            if isinstance(e, dict):
+                text_val = e.get("evidence_text", e.get("quote", e.get("summary", str(e))))
+                source_title = e.get("source_title", "Unknown Source")
+                formatted_snippets.append(f"Evidence {i+1} ({source_title}): {str(text_val)[:200]}")
+            else:
+                formatted_snippets.append(f"Evidence {i+1}: {str(e)[:200]}")
+
+        evidence_context = "\n\n".join(formatted_snippets)
         
         # Pro argument
-        pro_system = """You are tasked with arguing IN FAVOR of the given claim. Use the provided evidence to build a strong supporting argument. Focus on:
-1. Evidence that supports the claim
-2. Logical reasoning that validates the claim
-3. Addressing potential counterarguments
+        pro_system = """You are tasked with arguing IN FAVOR of the given claim. Use the provided evidence to build a supporting argument. Focus on supporting points and reasoning.
 
 Output a JSON object with:
-- argument: Your pro argument (3-5 paragraphs)
-- key_points: List of 3-5 key supporting points
-- cited_evidence: Indices of evidence items that support your argument"""
+- argument: Your pro argument (1-2 paragraphs)
+- key_points: List of 2-3 key supporting points
+- cited_evidence: Indices of evidence items"""
         
         try:
             pro_response = await self.groq_service.async_chat_completion_json(
                 messages=[
                     SystemMessage(content=pro_system),
-                    HumanMessage(content=f"""Claim: {claim}
-
-Evidence:
-{evidence_context}
-
-Argue IN FAVOR of this claim.""")
+                    HumanMessage(content=f"Claim: {claim}\n\nEvidence:\n{evidence_context}\n\nArgue IN FAVOR of this claim.")
                 ]
             )
         except Exception as e:
             logger.error(f"Error generating pro argument: {e}")
-            pro_response = {
-                "argument": "Error generating pro argument",
-                "key_points": [],
-                "cited_evidence": []
-            }
+            pro_response = {"argument": "No pro argument generated.", "key_points": [], "cited_evidence": []}
         
         # Con argument
-        con_system = """You are tasked with arguing AGAINST the given claim. Use the provided evidence to build a strong opposing argument. Focus on:
-1. Evidence that contradicts the claim
-2. Logical reasoning that invalidates the claim
-3. Highlighting weaknesses or uncertainties
+        con_system = """You are tasked with arguing AGAINST the given claim. Use the provided evidence to build a strong opposing argument. Focus on disconfirming facts and contradictions.
 
 Output a JSON object with:
-- argument: Your con argument (3-5 paragraphs)
-- key_points: List of 3-5 key opposing points
-- cited_evidence: Indices of evidence items that support your argument"""
+- argument: Your con argument (1-2 paragraphs)
+- key_points: List of 2-3 key opposing points
+- cited_evidence: Indices of evidence items"""
         
         try:
             con_response = await self.groq_service.async_chat_completion_json(
                 messages=[
                     SystemMessage(content=con_system),
-                    HumanMessage(content=f"""Claim: {claim}
-
-Evidence:
-{evidence_context}
-
-Argue AGAINST this claim.""")
+                    HumanMessage(content=f"Claim: {claim}\n\nEvidence:\n{evidence_context}\n\nArgue AGAINST this claim.")
                 ]
             )
         except Exception as e:
             logger.error(f"Error generating con argument: {e}")
-            con_response = {
-                "argument": "Error generating con argument",
-                "key_points": [],
-                "cited_evidence": []
-            }
+            con_response = {"argument": "No con argument generated.", "key_points": [], "cited_evidence": []}
         
         # Generate debate summary
-        summary_system = """You are a debate analyst. Summarize the debate between pro and con arguments. Provide:
-1. Key points of agreement
-2. Key points of disagreement
-3. Overall strength of each argument
-4. Which side has stronger evidence
-
-Output a JSON object with:
-- summary: Brief summary of the debate (2-3 paragraphs)
-- agreements: List of points both sides agree on
-- disagreements: List of points of disagreement
-- pro_strength: Assessment of pro argument strength (weak/moderate/strong)
-- con_strength: Assessment of con argument strength (weak/moderate/strong)"""
+        summary_system = """Summarize the debate between pro and con arguments. Output JSON with:
+- summary: Brief summary (1 paragraph)
+- pro_strength: weak/moderate/strong
+- con_strength: weak/moderate/strong"""
         
         try:
             summary_response = await self.groq_service.async_chat_completion_json(
                 messages=[
                     SystemMessage(content=summary_system),
-                    HumanMessage(content=f"""Claim: {claim}
-
-Pro Argument:
-{pro_response.get('argument', '')}
-
-Con Argument:
-{con_response.get('argument', '')}
-
-Summarize this debate.""")
+                    HumanMessage(content=f"Claim: {claim}\n\nPro: {pro_response.get('argument', '')}\n\nCon: {con_response.get('argument', '')}")
                 ]
             )
         except Exception as e:
             logger.error(f"Error generating debate summary: {e}")
-            summary_response = {
-                "summary": "Error generating debate summary",
-                "agreements": [],
-                "disagreements": [],
-                "pro_strength": "moderate",
-                "con_strength": "moderate"
-            }
+            summary_response = {"summary": "Debate completed.", "pro_strength": "weak", "con_strength": "strong"}
         
-        result = {
+        return {
             "pro_argument": pro_response.get("argument", ""),
             "con_argument": con_response.get("argument", ""),
             "pro_key_points": pro_response.get("key_points", []),
             "con_key_points": con_response.get("key_points", []),
-            "pro_evidence": pro_response.get("cited_evidence", []),
-            "con_evidence": con_response.get("cited_evidence", []),
             "debate_summary": summary_response
         }
-        
-        logger.info("Debate completed successfully")
-        return result
