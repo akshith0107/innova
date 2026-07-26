@@ -1,14 +1,62 @@
-"""Evidence Agent for PRAMAAN AI — Falsification Architecture.
+"""Evidence Agent for PRAMAAN AI — Source Weighting & Domain Deduplication.
 
-Evaluates evidence Authority, Reliability, Recency, and Independence to isolate disconfirming passages.
+Evaluates evidence Authority, Source Weights, Domain Independence, and Recency.
 """
 
 from typing import Dict, Any, List
+from urllib.parse import urlparse
 from langchain_core.messages import HumanMessage, SystemMessage
 from app.services.groq_service import GroqService
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Authority Weight Multipliers
+SOURCE_AUTHORITY_WEIGHTS = {
+    "OFFICIAL_GOVERNMENT": 1.0,
+    "PEER_REVIEWED_ACADEMIC": 0.95,
+    "KNOWLEDGE_BASE": 0.85,
+    "NEWS": 0.75,
+    "BLOG": 0.40,
+    "FORUM": 0.20,
+    "LLM": 0.10
+}
+
+
+def calculate_source_weight(url: str, source_tier: str = "Web") -> float:
+    """Calculates granular credibility weight based on domain and source tier."""
+    domain = urlparse(url).netloc.lower() if url else ""
+    
+    if any(domain.endswith(tld) for tld in [".gov", ".gov.in", ".gov.uk", ".mil", ".edu"]) or "official" in source_tier.lower():
+        return SOURCE_AUTHORITY_WEIGHTS["OFFICIAL_GOVERNMENT"]
+    if any(d in domain for d in ["arxiv.org", "nature.com", "sciencedirect.com", "ncbi.nlm.nih.gov", "ieee.org"]):
+        return SOURCE_AUTHORITY_WEIGHTS["PEER_REVIEWED_ACADEMIC"]
+    if "wikipedia" in domain or "wikidata" in domain or "britannica" in domain:
+        return SOURCE_AUTHORITY_WEIGHTS["KNOWLEDGE_BASE"]
+    if any(d in domain for d in ["reuters.com", "apnews.com", "bbc.com", "nytimes.com", "bloomberg.com"]):
+        return SOURCE_AUTHORITY_WEIGHTS["NEWS"]
+    if any(d in domain for d in ["medium.com", "wordpress.com", "blogspot.com"]):
+        return SOURCE_AUTHORITY_WEIGHTS["BLOG"]
+    if any(d in domain for d in ["reddit.com", "quora.com", "twitter.com", "x.com"]):
+        return SOURCE_AUTHORITY_WEIGHTS["FORUM"]
+        
+    return 0.60
+
+
+def deduplicate_domains(sources: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Deduplicates sources from duplicate domains/mirrors and calculates domain diversity score."""
+    seen_domains = set()
+    unique_sources = []
+    
+    for s in sources:
+        url = s.get("url", "")
+        domain = urlparse(url).netloc.lower() if url else s.get("title", "")
+        if domain and domain not in seen_domains:
+            seen_domains.add(domain)
+            s["weight"] = calculate_source_weight(url, s.get("source_tier", "Web"))
+            unique_sources.append(s)
+            
+    return unique_sources
 
 
 class EvidenceAgent:
@@ -30,9 +78,11 @@ class EvidenceAgent:
         """Extract and evaluate disconfirming evidence against authority metrics."""
         logger.info(f"Evaluating falsification evidence metrics for claim: {claim[:80]}...")
         
+        unique_sources = deduplicate_domains(sources)
+        
         source_snippets = "\n\n".join([
-            f"Source {i+1} [{s.get('source_tier', 'Web')}] ({s.get('title', 'Untitled')}) [URL: {s.get('url', '')}]:\n{s.get('content', s.get('snippet', ''))[:400]}"
-            for i, s in enumerate(sources[:8])
+            f"Source {i+1} [Weight: {s.get('weight', 0.6)}] ({s.get('title', 'Untitled')}) [URL: {s.get('url', '')}]:\n{s.get('content', s.get('snippet', ''))[:400]}"
+            for i, s in enumerate(unique_sources[:8])
         ])
         
         system_prompt = """You are an Lead Investigative Fact-Checker. Your goal is to identify evidence that FALSIFIES or REFUETS the claim first!
@@ -66,13 +116,22 @@ Output a JSON object with:
             )
 
             if isinstance(response, dict):
+                contradicting = response.get("contradicting_evidence", [])
+                supporting = response.get("supporting_evidence", [])
+
+                # Annotate evidence items with granular source weights
+                for item in contradicting + supporting:
+                    if isinstance(item, dict):
+                        item["source_weight"] = calculate_source_weight(item.get("url", ""))
+
                 return {
                     "claim": claim,
-                    "contradicting_evidence": response.get("contradicting_evidence", []),
-                    "supporting_evidence": response.get("supporting_evidence", []),
+                    "contradicting_evidence": contradicting,
+                    "supporting_evidence": supporting,
                     "neutral_evidence": response.get("neutral_evidence", []),
                     "evidence_strength": float(response.get("evidence_strength", 75.0)),
                     "source_authority_score": float(response.get("source_authority_score", 85.0)),
+                    "unique_domains_count": len(set(urlparse(s.get("url", "")).netloc for s in unique_sources)),
                     "summary": response.get("summary", "Falsification evidence evaluation finished.")
                 }
         except Exception as e:
@@ -86,5 +145,6 @@ Output a JSON object with:
             "neutral_evidence": [],
             "evidence_strength": 50.0,
             "source_authority_score": 70.0,
+            "unique_domains_count": 0,
             "summary": "Fallback evidence extraction."
         }
