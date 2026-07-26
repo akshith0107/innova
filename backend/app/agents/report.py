@@ -39,14 +39,19 @@ class ReportAgent:
         relevance_score = float(quality.get("relevance_score", 90.0))
         completeness_score = float(quality.get("completeness_score", 90.0))
 
-        # Trace Verdict Preservation across Pipeline Stage: Judge -> Report
+        # Trace & Verify Verdict Preservation across Pipeline Stage: Judge -> Report
         print("==================================================")
         print("PIPELINE TRACE: JUDGE -> REPORT VERDICT PRESERVATION")
         for idx, v in enumerate(verdicts, start=1):
             c_txt = v.get("claim", f"Claim {idx}")[:50]
-            v_val = v.get("verdict", "UNSUPPORTED")
-            r_lvl = v.get("risk_level", "LOW")
+            v_val = str(v.get("verdict", "UNSUPPORTED")).upper()
+            r_lvl = str(v.get("risk_level", "LOW")).upper()
             conf = v.get("confidence", 0.90)
+            
+            allowed = ["SUPPORTED", "CONTRADICTED", "PARTIALLY_SUPPORTED", "UNSUPPORTED", "INSUFFICIENT_EVIDENCE"]
+            if v_val not in allowed:
+                raise ValueError(f"ReportAgent Consistency Mismatch: Invalid verdict '{v_val}' for claim '{c_txt}'!")
+            
             print(f"Claim {idx} ('{c_txt}'): Verdict = {v_val} | Risk = {r_lvl} | Confidence = {conf}")
         print("==================================================")
 
