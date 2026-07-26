@@ -1,4 +1,4 @@
-# PRAMAAN AI Backend Dependencies
+# PRAMAAN AI Backend Lightweight Dependencies for Cloud Hosting (sub-60MB RAM)
 
 # FastAPI and server
 fastapi>=0.109.0
@@ -24,8 +24,7 @@ requests>=2.31.0
 # Wikipedia
 wikipedia>=1.4.0
 
-# Embeddings & Vector Database
-sentence-transformers>=2.3.1
+# Vector Database (Qdrant Client)
 qdrant-client>=1.7.0
 
 # Database
