@@ -277,7 +277,14 @@ export const VerificationLab: React.FC<VerificationLabProps> = ({ onOpenReport }
               </h4>
 
               <div className="space-y-4">
-                {activeResult.claims.map((claim) => (
+                {activeResult.claims.map((claim) => {
+                  const claimUnderline = claim.status === 'contradicted'
+                    ? 'underline decoration-2 decoration-rose-500 underline-offset-4'
+                    : claim.status === 'unsupported'
+                    ? 'underline decoration-2 decoration-amber-500 underline-offset-4'
+                    : '';
+
+                  return (
                   <div
                     key={claim.id}
                     className="p-5 rounded-2xl bg-[#09090B] border border-white/[0.06] space-y-3"
@@ -289,7 +296,7 @@ export const VerificationLab: React.FC<VerificationLabProps> = ({ onOpenReport }
                       </span>
                     </div>
 
-                    <p className="text-sm font-medium text-white leading-relaxed">
+                    <p className={`text-sm font-medium text-white leading-relaxed ${claimUnderline}`}>
                       "{claim.text}"
                     </p>
 
@@ -297,7 +304,8 @@ export const VerificationLab: React.FC<VerificationLabProps> = ({ onOpenReport }
                       {claim.explanation}
                     </p>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

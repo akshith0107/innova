@@ -34,9 +34,17 @@ export const ClaimsView: React.FC = () => {
         const statusIconMap = {
           verified: <CheckCircle2 className="w-4 h-4 text-status-success" />,
           contradicted: <AlertTriangle className="w-4 h-4 text-status-danger" />,
+          unsupported: <AlertTriangle className="w-4 h-4 text-amber-400" />,
           pending: <Clock className="w-4 h-4 text-status-warning" />,
           unverified: <Clock className="w-4 h-4 text-primary-muted" />
         };
+
+        // Underline style: red for contradicted, orange for unsupported
+        const claimTextUnderline = claim.status === 'contradicted'
+          ? 'underline decoration-2 decoration-rose-500 underline-offset-4'
+          : claim.status === 'unsupported'
+          ? 'underline decoration-2 decoration-amber-500 underline-offset-4'
+          : '';
 
         return (
           <Card key={claim.id} variant="glass" className="p-4 transition-all">
@@ -47,7 +55,7 @@ export const ClaimsView: React.FC = () => {
               <div className="flex items-start gap-2.5 flex-1">
                 <span className="shrink-0 mt-0.5">{statusIconMap[claim.status]}</span>
                 <div>
-                  <p className="text-xs font-medium text-primary leading-snug">{claim.text}</p>
+                  <p className={`text-xs font-medium text-primary leading-snug ${claimTextUnderline}`}>{claim.text}</p>
                   <div className="flex items-center gap-2 mt-2">
                     <Badge variant={claim.status === "verified" ? "success" : claim.status === "contradicted" ? "danger" : "warning"}>
                       {claim.status}

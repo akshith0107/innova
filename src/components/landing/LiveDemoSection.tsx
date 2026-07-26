@@ -133,40 +133,54 @@ export const LiveDemoSection: React.FC = () => {
                     return <span key={idx}>{seg.text}</span>;
                   }
 
-                  const claim = getClaimData(seg.claimId!);
-                  const isVerified = seg.status === 'verified';
+                  return (() => {
+                    const claim = getClaimData(seg.claimId!);
+                    const isVerified = seg.status === 'verified';
+                    const isUnsupported = seg.status === ('unsupported' as any);
 
-                  return (
-                    <motion.span
-                      key={idx}
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.4 }}
-                      onMouseEnter={() => claim && setHoveredClaim(claim)}
-                      className={`relative inline-block mx-1 px-2 py-0.5 rounded cursor-pointer transition-all duration-300 font-medium ${
-                        isVerified
-                          ? 'bg-emerald-950/60 text-emerald-200 border-b-2 border-emerald-500 hover:bg-emerald-900/80 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
-                          : 'bg-rose-950/60 text-rose-200 border-b-2 border-rose-500 hover:bg-rose-900/80 shadow-[0_0_15px_rgba(244,63,94,0.2)]'
-                      }`}
-                    >
-                      {seg.text}
-                      <span
-                        className={`ml-1.5 inline-flex items-center gap-1 text-[10px] uppercase font-mono tracking-wider px-1.5 py-0.2 rounded ${
-                          isVerified ? 'bg-emerald-900/90 text-emerald-300' : 'bg-rose-900/90 text-rose-300'
-                        }`}
+                    // Determine inline styling based on status
+                    const inlineStyle = isVerified
+                      ? 'bg-emerald-950/60 text-emerald-200 border-b-2 border-emerald-500 hover:bg-emerald-900/80 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                      : isUnsupported
+                      ? 'bg-amber-950/60 text-amber-200 border-b-2 border-amber-500 hover:bg-amber-900/80 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+                      : 'bg-rose-950/60 text-rose-200 border-b-2 border-rose-500 hover:bg-rose-900/80 shadow-[0_0_15px_rgba(244,63,94,0.2)]';
+
+                    const badgeStyle = isVerified
+                      ? 'bg-emerald-900/90 text-emerald-300'
+                      : isUnsupported
+                      ? 'bg-amber-900/90 text-amber-300'
+                      : 'bg-rose-900/90 text-rose-300';
+
+                    return (
+                      <motion.span
+                        key={idx}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.4 }}
+                        onMouseEnter={() => claim && setHoveredClaim(claim)}
+                        className={`relative inline-block mx-1 px-2 py-0.5 rounded cursor-pointer transition-all duration-300 font-medium ${inlineStyle}`}
                       >
-                        {isVerified ? (
-                          <>
-                            <CheckCircle2 className="w-2.5 h-2.5" /> 98% Verified
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="w-2.5 h-2.5" /> Contradicted
-                          </>
-                        )}
-                      </span>
-                    </motion.span>
-                  );
+                        {seg.text}
+                        <span
+                          className={`ml-1.5 inline-flex items-center gap-1 text-[10px] uppercase font-mono tracking-wider px-1.5 py-0.2 rounded ${badgeStyle}`}
+                        >
+                          {isVerified ? (
+                            <>
+                              <CheckCircle2 className="w-2.5 h-2.5" /> 98% Verified
+                            </>
+                          ) : isUnsupported ? (
+                            <>
+                              <XCircle className="w-2.5 h-2.5" /> Unsupported
+                            </>
+                          ) : (
+                            <>
+                              <XCircle className="w-2.5 h-2.5" /> Contradicted
+                            </>
+                          )}
+                        </span>
+                      </motion.span>
+                    );
+                  })();
                 })}
 
                 {streamIndex < textSegments.length && isPlaying && (

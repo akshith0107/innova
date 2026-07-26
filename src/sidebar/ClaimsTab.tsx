@@ -9,13 +9,14 @@ export const ClaimsTab: React.FC = () => {
   const { activeClaims } = useVerificationStore();
   const { openEvidenceDrawer } = useSidebarStore();
   
-  // Sort Claims: Critical Contradictions -> False/Contradicted -> Partially Supported -> Unverified -> Supported LAST!
+  // Sort Claims: Critical Contradictions -> False/Contradicted -> Unsupported -> Partially Supported -> Unverified -> Supported LAST!
   const sortedClaims = [...activeClaims].sort((a, b) => {
     const getRank = (c: Claim) => {
       const norm = (c.status || '').toLowerCase();
       if (norm === 'contradicted' || norm === 'refuted' || norm === 'false') {
         return c.risk_level === 'CRITICAL' ? 0 : 1;
       }
+      if (norm === 'unsupported') return 1.5;
       if (norm === 'partially_supported' || norm === 'mixed') return 2;
       if (norm === 'needs_review' || norm === 'analyzing' || norm === 'uncertain') return 3;
       return 4; // Supported claims LAST!
@@ -70,6 +71,14 @@ export const ClaimsTab: React.FC = () => {
         sortedClaims.map((claim) => {
           const isExpanded = expandedId === claim.id;
           const isContradicted = (claim.status || '').toLowerCase() === 'contradicted';
+          const isUnsupported = (claim.status || '').toLowerCase() === 'unsupported';
+
+          // Underline style: red for contradicted, orange for unsupported
+          const claimTextUnderline = isContradicted
+            ? 'underline decoration-2 decoration-rose-500 underline-offset-4'
+            : isUnsupported
+            ? 'underline decoration-2 decoration-amber-500 underline-offset-4'
+            : '';
 
           return (
             <div
@@ -77,6 +86,8 @@ export const ClaimsTab: React.FC = () => {
               className={`rounded-2xl border transition-all duration-300 overflow-hidden ${
                 isContradicted
                   ? 'bg-rose-950/20 border-rose-500/40 shadow-lg shadow-rose-950/30'
+                  : isUnsupported
+                  ? 'bg-amber-950/20 border-amber-500/40 shadow-lg shadow-amber-950/30'
                   : isExpanded
                   ? 'bg-zinc-900/90 border-purple-500/40'
                   : 'bg-[#111113] border-white/[0.06] hover:border-white/15'
@@ -89,7 +100,7 @@ export const ClaimsTab: React.FC = () => {
               >
                 <div className="space-y-2 flex-1">
                   <div>{renderStatusBadge(claim.status, claim.confidence, claim.risk_level)}</div>
-                  <p className="text-xs font-medium text-white leading-relaxed pt-1">
+                  <p className={`text-xs font-medium text-white leading-relaxed pt-1 ${claimTextUnderline}`}>
                     "{claim.text}"
                   </p>
                 </div>
