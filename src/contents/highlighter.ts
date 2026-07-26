@@ -24,6 +24,8 @@ export class InlineSentenceHighlighter {
               ? 'pramaan-mark-verified'
               : claim.status === 'contradicted'
               ? 'pramaan-mark-contradicted'
+              : claim.status === 'unsupported'
+              ? 'pramaan-mark-unsupported'
               : 'pramaan-mark-review'
           }`;
 
@@ -36,9 +38,12 @@ export class InlineSentenceHighlighter {
           } else if (claim.status === 'contradicted') {
             wrapper.style.borderBottom = '2px solid #F43F5E';
             wrapper.style.backgroundColor = 'rgba(244, 63, 94, 0.15)';
-          } else {
+          } else if (claim.status === 'unsupported') {
             wrapper.style.borderBottom = '2px solid #F59E0B';
             wrapper.style.backgroundColor = 'rgba(245, 158, 11, 0.12)';
+          } else {
+            wrapper.style.borderBottom = '2px dashed #71717A';
+            wrapper.style.backgroundColor = 'rgba(113, 113, 122, 0.10)';
           }
 
           wrapper.addEventListener('click', (e) => {

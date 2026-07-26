@@ -47,7 +47,8 @@ export class VerifyService {
   }
 
   /**
-   * Real-time sentence verification helper connecting to backend API
+   * Real-time sentence verification — polls backend for actual verdict.
+   * CRITICAL FIX: Previous version ignored backend response and always returned "verified".
    */
   public async verifySentence(
     sentenceText: string,
@@ -55,29 +56,81 @@ export class VerifyService {
     responseId: string
   ): Promise<Claim> {
     const claimId = generateId("clm");
+    const baseFields = {
+      id: claimId,
+      text: sentenceText,
+      timestamp: Date.now(),
+      extractedFromSentence: sentenceText,
+      responseId,
+      platform
+    };
+
     try {
-      await this.startVerification(sentenceText, sentenceText, platform);
-      return {
-        id: claimId,
-        text: sentenceText,
-        status: "verified",
-        confidence: 96,
-        timestamp: Date.now(),
-        extractedFromSentence: sentenceText,
-        responseId,
-        platform
-      };
+      const apiResponse = await this.startVerification(sentenceText, sentenceText, platform);
+      const verificationId = apiResponse.verification_id;
+
+      // Poll backend for the completed report (up to 15 seconds)
+      for (let i = 0; i < 15; i++) {
+        await new Promise((r) => setTimeout(r, 1000));
+        try {
+          const report = await this.getReport(verificationId);
+          if (report && report.status === "completed" && report.report) {
+            const claimResult = report.report.claims?.[0];
+            if (claimResult) {
+              // Map backend verdict to frontend ClaimStatus
+              const verdictMap: Record<string, Claim["status"]> = {
+                "SUPPORTED": "verified",
+                "CONTRADICTED": "contradicted",
+                "PARTIALLY_SUPPORTED": "pending",
+                "UNSUPPORTED": "unsupported",
+                "INSUFFICIENT_EVIDENCE": "unsupported",
+                "FAILED": "unverified"
+              };
+              const mappedStatus = verdictMap[claimResult.verdict] || "unverified";
+
+              return {
+                ...baseFields,
+                status: mappedStatus,
+                confidence: Math.round((claimResult.confidence || 0.5) * 100),
+                evidence: {
+                  claimId,
+                  summary: claimResult.reasoning || claimResult.correction || "",
+                  supportingSources: (claimResult.supporting_evidence || []).map((ev: any, idx: number) => ({
+                    id: `src-s-${verificationId}-${idx}`,
+                    title: ev.source_title || ev.title || "Retrieved Source",
+                    url: ev.url || "",
+                    domain: ev.url ? new URL(ev.url).hostname : "web",
+                    snippet: ev.quote || ev.reasoning || "",
+                    trustLevel: (ev.authority_score || 0.5) >= 0.8 ? "high" as const : "medium" as const,
+                    credibilityScore: Math.round((ev.authority_score || 0.5) * 100),
+                    confidence: Math.round((ev.authority_score || 0.5) * 100)
+                  })).filter((s: any) => s.url && s.snippet),
+                  contradictingSources: (claimResult.contradicting_evidence || []).map((ev: any, idx: number) => ({
+                    id: `src-c-${verificationId}-${idx}`,
+                    title: ev.source_title || ev.title || "Retrieved Source",
+                    url: ev.url || "",
+                    domain: ev.url ? new URL(ev.url).hostname : "web",
+                    snippet: ev.quote || ev.reasoning || "",
+                    trustLevel: (ev.authority_score || 0.5) >= 0.8 ? "high" as const : "medium" as const,
+                    credibilityScore: Math.round((ev.authority_score || 0.5) * 100),
+                    confidence: Math.round((ev.authority_score || 0.5) * 100)
+                  })).filter((s: any) => s.url && s.snippet),
+                  credibilityScore: Math.round((claimResult.confidence || 0.5) * 100),
+                  confidence: Math.round((claimResult.confidence || 0.5) * 100)
+                }
+              };
+            }
+          }
+        } catch {
+          // Report not ready yet — continue polling
+        }
+      }
+
+      // Timed out waiting for report — return unsupported, NOT verified
+      return { ...baseFields, status: "unsupported", confidence: 0 };
     } catch {
-      return {
-        id: claimId,
-        text: sentenceText,
-        status: "pending",
-        confidence: 85,
-        timestamp: Date.now(),
-        extractedFromSentence: sentenceText,
-        responseId,
-        platform
-      };
+      // Backend unreachable — return unverified, NOT verified
+      return { ...baseFields, status: "unverified", confidence: 0 };
     }
   }
 
