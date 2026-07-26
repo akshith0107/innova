@@ -200,10 +200,15 @@ def create_verification_workflow(
         """Judge node: Evaluate claims and render multi-status verdicts (Supported, Contradicted, Unsupported)."""
         logger.info("Executing Judge Agent")
         verdicts = []
-        for claim, debate_result, ev_item in zip(state["claims"], state["debate_results"], state.get("evidence", [])):
+        claims = state.get("claims", [])
+        debates = state.get("debate_results", [])
+        evidences = state.get("evidence", [])
+
+        for idx, claim in enumerate(claims):
             claim_text = claim.get("claim_text", "") if isinstance(claim, dict) else str(claim)
-            debate = debate_result.get("debate", {})
-            verdict = await judge.evaluate_claim(claim_text, debate, state["ranked_sources"], evidence_data=ev_item)
+            debate = debates[idx].get("debate", {}) if idx < len(debates) and isinstance(debates[idx], dict) else {}
+            ev_item = evidences[idx] if idx < len(evidences) else {}
+            verdict = await judge.evaluate_claim(claim_text, debate, state.get("ranked_sources", []), evidence_data=ev_item)
             verdicts.append(verdict)
         state["verdicts"] = verdicts
         return state

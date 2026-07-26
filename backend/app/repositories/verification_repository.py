@@ -66,6 +66,12 @@ class VerificationRepository(BaseRepository[Verification]):
         res = await self.session.execute(stmt)
         return res.scalars().first()
 
+    async def get_claims_by_verification_id(self, verification_id: int) -> List[Claim]:
+        """Fetch all claims for a verification ID."""
+        stmt = select(Claim).filter(Claim.verification_id == verification_id)
+        res = await self.session.execute(stmt)
+        return list(res.scalars().all())
+
     async def create_report(
         self,
         verification_id: int,

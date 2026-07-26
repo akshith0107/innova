@@ -203,6 +203,17 @@ async def get_report(
             "message": "Report not yet generated"
         }
     
+    claims_records = await repo.get_claims_by_verification_id(verification_id)
+    claims_data = []
+    for c in claims_records:
+        claims_data.append({
+            "claim": c.claim_text,
+            "claim_type": c.claim_type,
+            "verdict": c.verdict,
+            "confidence": c.confidence,
+            "reasoning": c.reasoning
+        })
+    
     return {
         "verification_id": verification_id,
         "query": verification.query,
@@ -216,7 +227,8 @@ async def get_report(
             "claim_summary": report.claim_summary,
             "key_insights": report.key_insights,
             "recommendations": report.recommendations,
-            "source_summary": report.source_summary
+            "source_summary": report.source_summary,
+            "claims": claims_data
         }
     }
 
