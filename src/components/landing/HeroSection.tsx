@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { ShieldCheck, Play } from 'lucide-react';
 import { MagneticButton } from '../common/MagneticButton';
+import { AddExtensionButton } from '../common/AddExtensionButton';
 
 interface HeroSectionProps {
   onStartDemo: () => void;
@@ -63,10 +64,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
         transition={{ duration: 0.9, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
         className="mt-12 flex flex-wrap items-center justify-center gap-5"
       >
-        <MagneticButton onClick={onOpenWorkspace} variant="primary">
-          <ShieldCheck className="w-4 h-4 text-black" />
-          Add to Chrome — Free
-        </MagneticButton>
+        <AddExtensionButton size="lg" variant="primary" showFallbackText={true} />
 
         <MagneticButton onClick={onStartDemo} variant="secondary">
           <Play className="w-3.5 h-3.5 fill-current text-purple-400" />

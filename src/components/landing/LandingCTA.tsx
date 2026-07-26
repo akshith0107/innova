@@ -1,13 +1,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Sparkles } from 'lucide-react';
-import { MagneticButton } from '../common/MagneticButton';
+import { Sparkles } from 'lucide-react';
+import { AddExtensionButton } from '../common/AddExtensionButton';
 
 interface LandingCTAProps {
   onOpenWorkspace: () => void;
 }
 
-export const LandingCTA: React.FC<LandingCTAProps> = ({ onOpenWorkspace }) => {
+export const LandingCTA: React.FC<LandingCTAProps> = ({ onOpenWorkspace: _onOpenWorkspace }) => {
   return (
     <section className="py-32 px-6 max-w-5xl mx-auto text-center relative">
       <div className="absolute inset-0 radial-beam-hero pointer-events-none" />
@@ -36,10 +36,7 @@ export const LandingCTA: React.FC<LandingCTAProps> = ({ onOpenWorkspace }) => {
         </p>
 
         <div className="pt-6 flex justify-center">
-          <MagneticButton onClick={onOpenWorkspace} variant="primary" className="!px-9 !py-4 !text-base">
-            <ShieldCheck className="w-5 h-5 text-black" />
-            Install PRAMAAN Chrome Extension
-          </MagneticButton>
+          <AddExtensionButton size="lg" variant="primary" showFallbackText={true} />
         </div>
       </motion.div>
     </section>

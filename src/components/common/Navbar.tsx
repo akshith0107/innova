@@ -2,6 +2,7 @@ import React from 'react';
 import { Shield, Sparkles, Layers, Sliders, History, FileText } from 'lucide-react';
 import type { ViewMode } from '../../types/pramaan';
 import { MagneticButton } from './MagneticButton';
+import { AddExtensionButton } from './AddExtensionButton';
 
 interface NavbarProps {
   currentView: ViewMode;
@@ -110,13 +111,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Sliders className="w-3.5 h-3.5" />
           </button>
 
-          <MagneticButton
-            onClick={() => onSelectView('workspace')}
+          <AddExtensionButton
+            size="sm"
             variant="primary"
-            className="!px-5 !py-2 !text-xs hidden sm:inline-flex"
-          >
-            Add to Chrome
-          </MagneticButton>
+            className="hidden sm:inline-flex"
+          />
         </div>
       </div>
     </header>

@@ -1,0 +1,6 @@
+# PRAMAAN Trust Platform Robots Policy
+User-agent: *
+Allow: /
+
+# Prevent search engines from indexing binary extension downloads
+Disallow: /downloads/
