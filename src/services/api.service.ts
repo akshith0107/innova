@@ -5,7 +5,7 @@ const AUTH_STORAGE_KEY = "pramaan_auth_session";
 
 export class ApiService {
   private static instance: ApiService;
-  private baseUrl = process.env.PLASMO_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+  private baseUrl = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || process.env.PLASMO_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
   private constructor() {}
 

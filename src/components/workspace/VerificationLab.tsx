@@ -38,9 +38,11 @@ export const VerificationLab: React.FC<VerificationLabProps> = ({ onOpenReport }
       return;
     }
 
+    const backendUrl = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/v1\/?$/, '') : "") || "http://127.0.0.1:8000";
+
     // Try calling real backend API
     try {
-      const res = await fetch("http://127.0.0.1:8000/v1/verify", {
+      const res = await fetch(`${backendUrl}/v1/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -57,7 +59,7 @@ export const VerificationLab: React.FC<VerificationLabProps> = ({ onOpenReport }
 
         for (let i = 0; i < 12; i++) {
           await new Promise((r) => setTimeout(r, 1000));
-          const repRes = await fetch(`http://127.0.0.1:8000/api/v1/report/${vId}`);
+          const repRes = await fetch(`${backendUrl}/api/v1/report/${vId}`);
           if (repRes.ok) {
             const repData = await repRes.json();
             if (repData.status === "completed" && repData.report) {
